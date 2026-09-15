@@ -86,35 +86,74 @@ def get_keyword_volume(keywords: list[str]) -> dict:
         raise
 
 
+def to_num(v):
+    # 네이버 API는 검색량이 낮으면 숫자 대신 "< 10" 같은 문자열을 줌
+    if v is None:
+        return 0
+    if isinstance(v, (int, float)):
+        return v
+    s = str(v).strip()
+    if s.startswith("<"):
+        return 5  # "< 10" 등 -> 정렬용으로 작은 값 처리
+    try:
+        return float(s.replace(",", ""))
+    except ValueError:
+        return 0
+
+
 if __name__ == "__main__":
-    # 옆커폰 주력 기종 기준 예시 키워드 (필요에 맞게 수정하세요)
-    target_keywords = ["갤럭시Z폴드8", "갤럭시Z플립8", "아이폰17"]
+    # 옆커폰 주력 기종/조건 기준 추적 키워드 (10개) - API가 hintKeywords를 최대 5개까지만
+    # 받아서 두 번에 나눠 호출한다.
+    target_keywords = [
+        "갤럭시Z폴드8", "갤럭시Z플립8", "갤럭시S25", "갤럭시S25울트라", "아이폰17",
+        "아이폰17프로", "아이폰", "자급제", "알뜰폰", "번호이동",
+    ]
 
-    result = get_keyword_volume(target_keywords)
+    all_rows = []
+    seen = set()
+    for i in range(0, len(target_keywords), 5):
+        batch = get_keyword_volume(target_keywords[i:i + 5])
+        for r in batch.get("keywordList", []):
+            key = r.get("relKeyword")
+            if key in seen:
+                continue
+            seen.add(key)
+            all_rows.append(r)
 
-    def to_num(v):
-        # 네이버 API는 검색량이 낮으면 숫자 대신 "< 10" 같은 문자열을 줌
-        if v is None:
-            return 0
-        if isinstance(v, (int, float)):
-            return v
-        s = str(v).strip()
-        if s.startswith("<"):
-            return 5  # "< 10" 등 -> 정렬용으로 작은 값 처리
-        try:
-            return float(s.replace(",", ""))
-        except ValueError:
-            return 0
+    result = {"keywordList": all_rows}
 
-    rows = result.get("keywordList", [])
-    rows.sort(key=lambda r: to_num(r.get("monthlyPcQcCnt")) + to_num(r.get("monthlyMobileQcCnt")), reverse=True)
+    rows_sorted = sorted(
+        all_rows,
+        key=lambda r: to_num(r.get("monthlyPcQcCnt")) + to_num(r.get("monthlyMobileQcCnt")),
+        reverse=True,
+    )
 
     print(f"{'키워드':20s} {'PC검색수':>10s} {'모바일검색수':>12s}")
-    for r in rows[:30]:
+    for r in rows_sorted[:30]:
         print(f"{r.get('relKeyword',''):20s} {str(r.get('monthlyPcQcCnt','')):>10s} {str(r.get('monthlyMobileQcCnt','')):>12s}")
 
-    # 오늘 날짜로 결과 저장 (대시보드 갱신용 원본 데이터)
+    # 오늘 날짜로 전체 결과 저장 (원본 데이터, 참고/백업용)
     out_name = f"naver_keywords_{time.strftime('%Y%m%d')}.json"
     with open(out_name, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
     print(f"\n저장 완료: {out_name}")
+
+    # 추적 대상 10개 키워드만 뽑은 요약 파일 (사이트 DB 갱신용)
+    by_name = {r.get("relKeyword"): r for r in all_rows}
+    summary = {
+        "updatedAt": time.strftime("%Y-%m-%d"),
+        "keywords": [
+            {
+                "n": kw,
+                "pc": to_num(by_name.get(kw, {}).get("monthlyPcQcCnt")),
+                "mobile": to_num(by_name.get(kw, {}).get("monthlyMobileQcCnt")),
+                "comp": by_name.get(kw, {}).get("compIdx", ""),
+            }
+            for kw in target_keywords
+            if kw in by_name
+        ],
+    }
+    summary_name = f"naver_keywords_summary_{time.strftime('%Y%m%d')}.json"
+    with open(summary_name, "w", encoding="utf-8") as f:
+        json.dump(summary, f, ensure_ascii=False, indent=2)
+    print(f"요약 저장 완료: {summary_name}")
