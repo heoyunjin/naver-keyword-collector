@@ -7424,6 +7424,17 @@
       "monthlyAveMobileClkCnt": 3.0,
       "monthlyAvePcCtr": 5.96,
       "monthlyAveMobileCtr": 6.98
+    },
+    {
+      "relKeyword": "아이폰폴드",
+      "monthlyPcQcCnt": 20300,
+      "monthlyMobileQcCnt": 79600,
+      "plAvgDepth": 3,
+      "compIdx": "높음",
+      "monthlyAvePcClkCnt": 63.7,
+      "monthlyAveMobileClkCnt": 322.7,
+      "monthlyAvePcCtr": 0.32,
+      "monthlyAveMobileCtr": 0.41
     }
   ]
 }
